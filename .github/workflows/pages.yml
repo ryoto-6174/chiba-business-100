@@ -1,0 +1,46 @@
+name: Validate and deploy research catalog
+
+on:
+  push:
+    branches: [codex/publish]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Generate static pages
+        run: python3 render_site.py --input public-catalog.json --output _site
+      - name: Verify catalog, NEW markers, rounds and links
+        run: |
+          python3 check_site.py public-catalog.json _site
+          node --check _site/filter.js
+      - name: Save verification result
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-check
+          path: site-check.json
+          retention-days: 7
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
